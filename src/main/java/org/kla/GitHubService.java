@@ -10,7 +10,7 @@ import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 
 //@RegisterRestClient(baseUri = "http://localhost:8000/")
 @RegisterRestClient(baseUri = "https://api.github.com")
-//@ClientHeaderParam(name = "Authorization", value = "Bearer ")
+@ClientHeaderParam(name = "Authorization", value = "Bearer ${git_token}")
 public interface GitHubService {
 
     @GET
@@ -21,7 +21,7 @@ public interface GitHubService {
     @GET
     @Produces(("application/vnd.github+json"))
     @Path("/repos/{owner}/{repo}/commits")
-    String getCommits(@PathParam("owner") String username, @PathParam("repo") String repo);
+    String getCommits(@PathParam("owner") String username, @PathParam("repo") String repo, @QueryParam("page") int page);
 
     @GET
     @Produces("application/vnd.github+json")

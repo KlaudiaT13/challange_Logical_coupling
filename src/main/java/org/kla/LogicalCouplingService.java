@@ -1,26 +1,24 @@
 package org.kla;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.inject.Inject;
-import jakarta.json.Json;
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
-import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.MediaType;
-import org.eclipse.microprofile.rest.client.annotation.ClientHeaderParam;
+import jakarta.ws.rs.PathParam;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Objects;
 
-@Path("/hello")
-public class GreetingResource {
-    @Inject
-    ObjectMapper mapper;
+@ApplicationScoped
+public class LogicalCouplingService {
+
+    @RestClient
+    private GitHubService gitHubService;
 
     Contributor[] contributors;
-//    Contributor[] copyOfContributors;
+    //    Contributor[] copyOfContributors;
     int[] listOfId;
     int numberOfContributors;
     String[] sha_of_commits;
@@ -30,51 +28,19 @@ public class GreetingResource {
     int[][] changesInFiles;
     int lengthOfTheTree;
 
-    @RestClient
-    private MyRemoteService service;
-
-    @RestClient
-    private GitHubService gitHubService;
-
-    @GET
-    @Produces(MediaType.TEXT_PLAIN)
-    public String hello() {
-        return "Hello from Quarkus REST";
+    public String getCommits(String owner, String repo, int page) {
+        return gitHubService.getCommits(owner, repo, page);
     }
 
-    @GET
-    @Produces(MediaType.APPLICATION_JSON)
-    @Path("/ala")
-    public String hey() {
-        return service.wiki();
-
-    }
-
-    @GET
-    @Path("/owner/{owner}/repo/{repo}/commits")
-    public String getCommits(@PathParam("owner") String owner, @PathParam("repo") String repo) {
-        return gitHubService.getCommits(owner, repo);
-    }
-
-    @GET
-    @Path("/owner/{owner}/repo/{repo}/{ref}")
-    public JsonObject getCommit(@PathParam("owner") String owner, @PathParam("repo") String repo, @PathParam("ref") String ref) {
+    public JsonObject getCommit(String owner, String repo, String ref) {
         return gitHubService.getCommit(owner, repo, ref);
     }
 
-    @GET
-    @Consumes(MediaType.MULTIPART_FORM_DATA)
-    @Produces(MediaType.APPLICATION_JSON)
-    @Path("/owner/{owner}/repo/{repo}/commits/mapped")
-    public JsonArray getCommitsMapped(@PathParam("owner") String owner, @PathParam("repo") String repo) {
-        JsonArray jsonArray = gitHubService.getCommitsMapped(owner, repo);
-        return jsonArray;
-
+    public JsonArray getCommitsMapped(String owner, String repo) {
+        return gitHubService.getCommitsMapped(owner, repo);
     }
 
-    @GET
-    @Path("/find_coupling/{owner}/{repo}")
-    public String findCoupling(@PathParam("owner") String owner, @PathParam("repo") String repo) {
+    public String findCoupling(String owner, String repo) {
         //this initializes list of contributors; later change to creating them from id, not name; also check if endpoint returns all of them - more id can be on next pages
         String[] list_of_contributors = getListOfContributors(gitHubService.getCommitsMapped(owner, repo));
         String[] list_of_unique_contributors = Arrays.stream(list_of_contributors).distinct().toArray(String[]::new);
@@ -110,33 +76,33 @@ public class GreetingResource {
 
 //       Create 2D array: each row (first index) is one contributor, each column is one file (2. Idea: for each contributor create an array to hold number of commited changes to each file)
         changesInFiles = new int[numberOfContributors][numberOfFiles];
-            for (int j = 0; j < numberOfCommits; j++) {
-                String sha = sha_of_commits[j];
+        for (int j = 0; j < numberOfCommits; j++) {
+            String sha = sha_of_commits[j];
 //                String commit_temp = gitHubService.getCommit(owner, repo, sha);
 //                JsonObject commit = mapper.convertValue(commit_temp, JsonObject.class);
-                JsonObject commit = gitHubService.getCommit(owner, repo, sha);
-                String name = nameOfAuthorOfCommit(commit);
-                // get index of this contributor from contributors array:
-                int index = -1;
-                for(int k = 0; k < contributors.length; k++) {
-                    if(Objects.equals(contributors[k].getUsername(), name)){
-                        index = k;
-                    }
+            JsonObject commit = gitHubService.getCommit(owner, repo, sha);
+            String name = nameOfAuthorOfCommit(commit);
+            // get index of this contributor from contributors array:
+            int index = -1;
+            for(int k = 0; k < contributors.length; k++) {
+                if(Objects.equals(contributors[k].getUsername(), name)){
+                    index = k;
                 }
-
-
-
-                String[][] filesAndChanges = getArrayOfShaOfFilesAndNumberOfChangesFromOneCommit(commit);
-                for (int i = 0; i < filesAndChanges.length; i++) {
-                    String url = filesAndChanges[i][0];
-                    int indexOfChangedFile = Arrays.stream(files).toList().indexOf(url);
-                    int numberOfChangedLines = Integer.valueOf(filesAndChanges[i][1]);
-                    //index of contributor
-                    changesInFiles[index][indexOfChangedFile] += numberOfChangedLines;
-                }
-
-
             }
+
+
+
+            String[][] filesAndChanges = getArrayOfShaOfFilesAndNumberOfChangesFromOneCommit(commit);
+            for (int i = 0; i < filesAndChanges.length; i++) {
+                String url = filesAndChanges[i][0];
+                int indexOfChangedFile = Arrays.stream(files).toList().indexOf(url);
+                int numberOfChangedLines = Integer.valueOf(filesAndChanges[i][1]);
+                //index of contributor
+                changesInFiles[index][indexOfChangedFile] += numberOfChangedLines;
+            }
+
+
+        }
 //            This way, in this nested loop, every change in files was counted in array files
 //        changesInFiles consists of: every row represents different Contributor (contributor from row i has a name contributors[i].getUsername)
 //        each column represents different file
@@ -197,7 +163,7 @@ public class GreetingResource {
         String second_contributor_in_pair = sortedContributors[pair_of_lowest_difference + 1].getUsername();
 
 
-        return first_contributor_in_pair + " " + second_contributor_in_pair;
+        return first_contributor_in_pair + " " + second_contributor_in_pair + " number of commits " + numberOfCommits;
 //        return "";
     }
 
@@ -231,26 +197,11 @@ public class GreetingResource {
 
     }
 
-    @GET
-    @Path("/test")
-    public String test(){
-//        test for list of names:
-//        JsonArray jsonArray = getCommitsMapped("KlaudiaT13", "hackatum-2023");
-//        String[] names = getListOfContributors(jsonArray);
-//        String namesFormated = String.join(", ", names);
-//        return namesFormated;
-
-//        test for sha:
-//        JsonArray jsonArray = getCommitsMapped("KlaudiaT13", "hackatum-2023");
-//        return getShaFromJson(jsonArray.getFirst().asJsonObject());
-
-        return "Hi";
-    }
-//    sha can be {ref} to get specific commit:
+    //    sha can be {ref} to get specific commit:
     public String getShaFromJson(JsonObject object){
         return object.get("sha").toString();
     }
-//    with duplicates:
+    //    with duplicates:
     public String[] getListOfContributors(JsonArray jsonArray){
         JsonObject obj;
         String[] names = new String[jsonArray.size()];
@@ -340,99 +291,4 @@ public class GreetingResource {
         return maxLength;
     }
 
-
-
-
 }
-
-
-
-//this was working:
-//@GET
-//@Path("/owner/{owner}/repo/{repo}/commits")
-//public String getCommits(@PathParam("owner") String owner, @PathParam("repo") String repo) {
-//    return gitHubService.getCommits(owner, repo);
-//}
-
-// this was returning sha from first commit:
-//@GET
-//@Consumes(MediaType.MULTIPART_FORM_DATA)
-//@Produces(MediaType.APPLICATION_JSON)
-//@Path("/owner/{owner}/repo/{repo}/commits/mapped")
-//public String getCommitsMapped(@PathParam("owner") String owner, @PathParam("repo") String repo) {
-//    JsonArray jsonArray = gitHubService.getCommitsMapped(owner, repo);
-//    JsonObject obj = jsonArray.getJsonObject(0);
-//    String sha = obj.getString("sha");
-//
-//    String a = String.valueOf(jsonArray.getFirst());
-//    return sha;
-//}
-
-//working! returns login nested in author:
-//@GET
-//@Consumes(MediaType.MULTIPART_FORM_DATA)
-//@Produces(MediaType.APPLICATION_JSON)
-//@Path("/owner/{owner}/repo/{repo}/commits/mapped")
-//public String getCommitsMapped(@PathParam("owner") String owner, @PathParam("repo") String repo) {
-//    JsonArray jsonArray = gitHubService.getCommitsMapped(owner, repo);
-//    JsonObject obj = jsonArray.getJsonObject(0);
-//    String sha = obj.getString("sha");
-//    String author = obj.get("author").toString();
-//    String login = null;
-//    if(author != null && !author.isEmpty() && !author.equals("null")) {
-//        if (obj.get("author").asJsonObject().getJsonString("login").getString() != null) {
-//            login = obj.get("author").asJsonObject().getJsonString("login").getString();
-//        }
-//    }
-//
-//    String a = String.valueOf(jsonArray.getFirst());
-//    return login;
-//}
-
-//safety version, returns null, if there is no login
-//@GET
-//@Consumes(MediaType.MULTIPART_FORM_DATA)
-//@Produces(MediaType.APPLICATION_JSON)
-//@Path("/owner/{owner}/repo/{repo}/commits/mapped")
-//public String getCommitsMapped(@PathParam("owner") String owner, @PathParam("repo") String repo) {
-//    JsonArray jsonArray = gitHubService.getCommitsMapped(owner, repo);
-//    JsonObject obj = jsonArray.getJsonObject(0);
-//    String author = obj.get("author").toString();
-//    if(author != null){
-//        String login = null;
-//        if(author != null && !author.isEmpty() && !author.equals("null")) {
-//            if (obj.get("author").asJsonObject().getJsonString("login").getString() != null) {
-//                return obj.get("author").asJsonObject().getJsonString("login").getString();
-//            }
-//        }
-//    }
-//    return null;
-//}
-
-//name of author of the first commit (not secured against null values:
-//@GET
-//@Consumes(MediaType.MULTIPART_FORM_DATA)
-//@Produces(MediaType.APPLICATION_JSON)
-//@Path("/owner/{owner}/repo/{repo}/commits/mapped")
-//public String getCommitsMapped(@PathParam("owner") String owner, @PathParam("repo") String repo) {
-//    JsonArray jsonArray = gitHubService.getCommitsMapped(owner, repo);
-//    JsonObject obj = jsonArray.getJsonObject(0);
-//    String name = obj.get("commit").asJsonObject().get("author").asJsonObject().getJsonString("name").toString();
-//    return name;
-//}
-
-//arrays of names of authors of commits from the first page
-//@GET
-//@Consumes(MediaType.MULTIPART_FORM_DATA)
-//@Produces(MediaType.APPLICATION_JSON)
-//@Path("/owner/{owner}/repo/{repo}/commits/mapped")
-//public String[] getCommitsMapped(@PathParam("owner") String owner, @PathParam("repo") String repo) {
-//    JsonArray jsonArray = gitHubService.getCommitsMapped(owner, repo);
-//    JsonObject obj;
-//    String[] names = new String[jsonArray.size()];
-//    for (int i = 0; i < jsonArray.size(); i++) {
-//        obj = jsonArray.getJsonObject(i);
-//        names[i] = obj.get("commit").asJsonObject().get("author").asJsonObject().getJsonString("name").toString();
-//    }
-//    return names;
-//}
