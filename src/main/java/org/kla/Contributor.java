@@ -4,6 +4,14 @@ import java.util.ArrayList;
 
 public class Contributor
 {
+    //    int id;
+    String username;
+    int[] contributions;
+    int position_on_the_tree = 0;
+    int length_of_position_on_the_tree = 0;
+    int sum_of_all_changed_lines = 0;
+
+
     public String getUsername() {
         return username;
     }
@@ -12,21 +20,8 @@ public class Contributor
         this.sum_of_all_changed_lines = sum_of_all_changed_lines;
     }
 
-    //    int id;
-    String username;
-
     public int getLength_of_position_on_the_tree() {
         return length_of_position_on_the_tree;
-    }
-
-    int[] contributions;
-    int position_on_the_tree = 0;
-    int length_of_position_on_the_tree = 0;
-    int sum_of_all_changed_lines = 0;
-    int treeResult = 0;
-
-    public int getTreeResult() {
-        return treeResult;
     }
 
     public int getPosition_on_the_tree() {
@@ -54,13 +49,5 @@ public class Contributor
     void update_length_of_position_on_the_tree(){
         length_of_position_on_the_tree++;
     }
-//    void update_tree_result(){
-//        if(position_on_the_tree.isEmpty()){
-//            treeResult = 0;
-//        } else{
-//            treeResult = Integer.parseInt(this.position_on_the_tree);
-//        }
-//    }
-
 
 }

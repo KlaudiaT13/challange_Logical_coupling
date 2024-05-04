@@ -35,8 +35,8 @@ public class LogicalCouplingResource {
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     @Produces(MediaType.APPLICATION_JSON)
     @Path("/owner/{owner}/repo/{repo}/commits/mapped")
-    public JsonArray getCommitsMapped(@PathParam("owner") String owner, @PathParam("repo") String repo) {
-        return couplingService.getCommitsMapped(owner, repo);
+    public JsonArray getCommitsMapped(@PathParam("owner") String owner, @PathParam("repo") String repo, @QueryParam("page") int page) {
+        return couplingService.getCommitsMapped(owner, repo, page);
     }
 
     @GET

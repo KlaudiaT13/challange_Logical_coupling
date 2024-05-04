@@ -31,7 +31,7 @@ public interface GitHubService {
     @GET
     @Produces(("application/vnd.github+json"))
     @Path("/repos/{owner}/{repo}/commits")
-    JsonArray getCommitsMapped(@PathParam("owner") String username, @PathParam("repo") String repo);
+    JsonArray getCommitsMapped(@PathParam("owner") String username, @PathParam("repo") String repo, @QueryParam("page") int page);
 
     //commits or contributors
     //contributors?per_page=1
