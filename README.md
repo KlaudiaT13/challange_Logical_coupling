@@ -16,4 +16,5 @@ I set a limit to loading pages of commits to 50. Each page contains 30 commits.
 It takes a while to call endpoint for specifications of each of 1500 commits.
 
 ## Running test
-If you don't want to wait, in commitsDetails3.txt & commitsList3.txt are contained all data to run test for quarkus repo, for first 1500 commits.
+If you don't want to wait, just run test: LogicalCouplingServiceTest. 
+In commitsDetails3.txt & commitsList3.txt are contained all data to run test for quarkus repo, for first 1500 commits.
