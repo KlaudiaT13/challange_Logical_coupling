@@ -27,6 +27,7 @@ import java.util.concurrent.Executors;
 @ApplicationScoped
 public class GitHubService {
 
+    public static final int PAGE_LIMIT = 50;
     @RestClient
     private GitHubRestClient restClient;
 
@@ -51,11 +52,11 @@ public class GitHubService {
 
         String commits = restClient.getCommits(owner, repo, 1);
         List<CommitData> commitsMapped = mapCommit(commits);
-        while (!commitsMapped.isEmpty() && page < 20) {
+        while (!commitsMapped.isEmpty() && page < PAGE_LIMIT) {
             commitDataList.addAll(commitsMapped);
             commitsMapped = mapCommit(restClient.getCommits(owner, repo, ++page));
         }
-        saveFile(commitDataList);
+//        saveFile(commitDataList);
         return commitDataList;
     }
 
@@ -100,7 +101,7 @@ public class GitHubService {
                     .map(CompletableFuture::join)
                     .map(this::mapCommitDetails)
                     .toList();
-            saveCommitDetails(list);
+//            saveCommitDetails(list);
             return list;
         }
     }

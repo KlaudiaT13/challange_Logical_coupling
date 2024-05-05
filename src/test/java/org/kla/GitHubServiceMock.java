@@ -21,7 +21,7 @@ public class GitHubServiceMock extends GitHubService {
         String commits = null;
         List<CommitData> commitData = null;
         try {
-            commits = readFile(Path.of("commitsList1.txt"));
+            commits = readFile(Path.of("commitsList3.txt"));
             commitData = mapper.readValue(commits, new TypeReference<List<CommitData>>() {
             });
         } catch (IOException e) {
@@ -34,7 +34,7 @@ public class GitHubServiceMock extends GitHubService {
         String commitsDetailsFile = null;
         List<CommitDetails> commitDetails = null;
         try {
-            commitsDetailsFile = readFile(Path.of("commitsDetails1.txt"));
+            commitsDetailsFile = readFile(Path.of("commitsDetails3.txt"));
             commitDetails = mapper.readValue(commitsDetailsFile, new TypeReference<List<CommitDetails>>() {
             });
         } catch (IOException e) {

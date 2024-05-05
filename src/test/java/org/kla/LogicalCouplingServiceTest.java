@@ -18,6 +18,6 @@ class LogicalCouplingServiceTest {
 
         String result = sut.findCoupling("any", "test");
 
-        assertEquals("Frank Elsinga Kordian Bruck number of commits 110", result);
+        assertEquals("Guillaume Smet David M. Lloyd", result);
     }
 }
