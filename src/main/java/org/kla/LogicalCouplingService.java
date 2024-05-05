@@ -2,70 +2,45 @@ package org.kla;
 
 import io.quarkus.logging.Log;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonObject;
-import org.eclipse.microprofile.rest.client.inject.RestClient;
+import org.kla.dto.CommitData;
+import org.kla.dto.CommitDetails;
 
 import java.time.Duration;
 import java.time.LocalTime;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 @ApplicationScoped
 public class LogicalCouplingService {
 
-    @RestClient
-    private GitHubService gitHubService;
+    private final GitHubService gitHubService;
 
     Contributor[] contributors;
     int[] listOfId;
     int numberOfContributors;
-    String[] sha_of_commits;
     int numberOfCommits;
     String[] files;
     int numberOfFiles;
     int[][] changesInFiles;
     int lengthOfTheTree;
 
-    public String getCommits(String owner, String repo, int page) {
-        return gitHubService.getCommits(owner, repo, page);
+    public LogicalCouplingService(GitHubService gitHubService) {
+        this.gitHubService = gitHubService;
     }
 
-    public JsonObject getCommit(String owner, String repo, String ref) {
-        return gitHubService.getCommit(owner, repo, ref);
-    }
 
-    public JsonArray getCommitsMapped(String owner, String repo, int page) {
-        return gitHubService.getCommitsMapped(owner, repo, page);
-    }
 
     public String findCoupling(String owner, String repo) {
         //this initializes list of contributors; later change to creating them from id, not name; also check if endpoint returns all of them - more id can be on next pages
-        int page = 1;
-        List<String> list_of_contributors = new ArrayList<>();
-        List<String> list_of_commits = new ArrayList<>();
         Log.info("==== Start ==== time: " + LocalTime.now());
-        JsonArray commitsMapped = gitHubService.getCommitsMapped(owner, repo, page);
 
-
-        while(!commitsMapped.isEmpty() && page<50){
-            Log.info("Get commits: " + page + " Time: " + LocalTime.now());
-            list_of_contributors.addAll(getListOfContributors(commitsMapped));
-            list_of_commits.addAll(getLisOfShaOfCommits(commitsMapped));
-            page++;
-            commitsMapped = gitHubService.getCommitsMapped(owner, repo, page);
-        }
+        List<CommitData> commitsList = gitHubService.getCommitsList(owner, repo);
+        List<String> contributorList = gitHubService.getContributorsList(commitsList);
+        List<String> commitList = gitHubService.getShaOfCommitsList(commitsList);
         Log.info("Get commits: Finished, Time: " + LocalTime.now());
 
-//        List<Contributor> contributorList = new ArrayList<>();
-//        list_of_contributors.stream().distinct().forEach(c->contributorList.add(new Contributor(c)));
-
-        contributors = list_of_contributors.stream()
+        contributors = contributorList.stream()
                 .distinct()
                 .map(Contributor::new)
                 .toArray(Contributor[] ::new);
@@ -74,52 +49,41 @@ public class LogicalCouplingService {
         numberOfContributors = contributors.length;
         if (numberOfContributors < 2) {return "There is only one or none contributors";}
 
-        //get sha from list of all commits and save them to array sha_of_commits; check later if those are really all of them and not only from the first page
-        sha_of_commits = list_of_commits.toArray(String[]::new);
-
         //number of all commits in repo
-        numberOfCommits = sha_of_commits.length;
+        numberOfCommits = commitList.size();
 
         LocalTime start = LocalTime.now();
         Log.info("=== Get commits detail: Start, Time: " + start);
-        List<JsonObject> allCommits = getAllCommits(owner, repo, list_of_commits);
+        List<CommitDetails> allCommitsList = gitHubService.getAllCommitsList(owner, repo, commitList);
+
         LocalTime stop = LocalTime.now();
         Duration duration = Duration.between(start, stop);
         long seconds = duration.getSeconds();
         Log.info("=== Get commits detail: Stop, Time: " + stop + " Duration: " + seconds);
         //this initializes files[] - element of this array is a path (now raw_url - is it the right choice?) to the file in repo; all paths are unique
 
-        ArrayList<String> list = new ArrayList<String>();
-
-/*        Log.info("=== Get One commit: Start, Time: " + LocalTime.now());
-        for (int i = 0; i < sha_of_commits.length; i++) {
-//            this is array of all file url's mentioned in a commit of sha = sha_of_commits[i]:
-//            getArrayOfFilesFromOneCommit(getOneShaOfCommit(getCommit(owner, repo, sha_of_commits[i])))
-            List<String> filesFromOneCommit = getArrayOfFilesFromOneCommit(allCommits.get(i));
-//          merging lists:
-            list.addAll(filesFromOneCommit);
-            Log.info("Get one commit: " + i + " Time: " + LocalTime.now());
-        }*/
-
-
-        allCommits.forEach(c->list.addAll(getArrayOfFilesFromOneCommit(c)));
-        files = list.stream().distinct().toArray(String[]::new);
+        files = gitHubService.getFilenameFromCommits(allCommitsList);
 
         //number of files in repo
         numberOfFiles = files.length;
 
 //       Create 2D array: each row (first index) is one contributor, each column is one file (2. Idea: for each contributor create an array to hold number of commited changes to each file)
         changesInFiles = new int[numberOfContributors][numberOfFiles];
-        allCommits.forEach(commit-> {
-            String name = nameOfAuthorOfCommit(commit);
-            int index = getIndexOfContributor(name);
-            String[][] filesAndChanges = getArrayOfShaOfFilesAndNumberOfChangesFromOneCommit(commit);
+
+        allCommitsList.forEach(commit-> {
+            int index = getIndexOfContributor(commit.getCommit().getAuthor().getName());
+            String[][] filesAndChanges = gitHubService.getArrayOfShaOfFilesAndNumberOfChangesFromCommit(commit);
             for (String[] filesAndChange : filesAndChanges) {
                 String url = filesAndChange[0];
                 int indexOfChangedFile = Arrays.stream(files).toList().indexOf(url);
                 int numberOfChangedLines = Integer.valueOf(filesAndChange[1]);
                 //index of contributor
-                changesInFiles[index][indexOfChangedFile] += numberOfChangedLines;
+                try {
+                    changesInFiles[index][indexOfChangedFile] += numberOfChangedLines;
+                } catch (Exception e) {
+                    Log.error("Error changesInFiles table. index: " + index + " indexOfChangedFile: " + indexOfChangedFile);
+                    throw new RuntimeException(e);
+                }
             }
         });
 
@@ -133,7 +97,6 @@ public class LogicalCouplingService {
         for (int i = 0; i < numberOfContributors; i++) {
             contributors[i].setSum_of_all_changed_lines(getNumberOfAllChangedLines(i));
         }
-
 
 
 //        now the algorithm needs only Contributor[] contributors and int[][] changesInFiles;
@@ -186,33 +149,7 @@ public class LogicalCouplingService {
         return first_contributor_in_pair + " " + second_contributor_in_pair + " number of commits " + numberOfCommits;
     }
 
-    List<JsonObject> getAllCommits1(String owner, String repo, List<String> sha_of_commits) {
-        List<JsonObject> allCommits = new ArrayList<>();
-//        sha_of_commits.forEach(c->{
-//            Log.info("Get commits detail: " + c + "Time: " + LocalTime.now());
-//            allCommits.add(gitHubService.getCommit(owner, repo, c));
-//        });
-//
-//        return sha_of_commits.parallelStream().map(c->gitHubService.getCommit(owner, repo, c)).toList();
-        sha_of_commits.parallelStream().forEach(c->{
-            Log.info("Get commits detail: " + c + "Time: " + LocalTime.now());
-            allCommits.add(gitHubService.getCommit(owner, repo, c));
-        });
-       return allCommits;
-    }
 
-
-    List<JsonObject> getAllCommits(String owner, String repo, List<String> sha_of_commits) {
-        try (ExecutorService executor = Executors.newFixedThreadPool(10)) {
-            return sha_of_commits.stream()
-                    .map(c -> CompletableFuture.supplyAsync(() -> {
-//                        Log.info("Get commits detail: " + c + "Time: " + LocalTime.now());
-                        return gitHubService.getCommit(owner, repo, c);
-                    }, executor))
-                    .map(CompletableFuture::join)
-                    .toList();
-        }
-    }
 
     int getIndexOfContributor(String name) {
         int index = -1;
@@ -227,15 +164,17 @@ public class LogicalCouplingService {
     public void rec(int index, int length, int file, double percent){
         if(length > 1){
             int m = 0;
-            for (int i = index; i < length - m; i++) {
-                if(changesInFiles[listOfId[i]][file] > percent * getContributor(listOfId[i]).sum_of_all_changed_lines){
-                    getContributor(listOfId[i]).update_position_on_the_tree(1);
-                    getContributor(listOfId[i]).update_length_of_position_on_the_tree();
-                    swapId(listOfId, i, length - m - 1);
-                    m++;
-                    i--;
-                }else{
-                    getContributor(i).update_position_on_the_tree(0);
+            while (m == 0){
+                for (int i = index; i < length - m; i++) {
+                    if(changesInFiles[listOfId[i]][file] > percent * getContributor(listOfId[i]).sum_of_all_changed_lines){
+                        getContributor(listOfId[i]).update_position_on_the_tree(1);
+                        getContributor(listOfId[i]).update_length_of_position_on_the_tree();
+                        swapId(listOfId, i, length - m - 1);
+                        m++;
+                        i--;
+                    }else{
+                        getContributor(i).update_position_on_the_tree(0);
+                    }
                 }
             }
             if(m!=length){
@@ -250,52 +189,6 @@ public class LogicalCouplingService {
                 rec(length - m, m, file, percent * 1.5);
             }
         }
-    }
-
-    //    with duplicates:
-    public List<String> getListOfContributors(JsonArray jsonArray){
-        JsonObject obj;
-        List<String> names = new ArrayList<>();
-        for (int i = 0; i < jsonArray.size(); i++) {
-            obj = jsonArray.getJsonObject(i);
-            names.add(
-                    obj.get("commit").asJsonObject().get("author").asJsonObject().getJsonString("name").toString()
-            );
-        }
-        return names;
-    }
-
-    public List<String> getLisOfShaOfCommits(JsonArray jsonArray){
-        JsonObject obj;
-        List<String> sha = new ArrayList<>();
-        for (int i = 0; i < jsonArray.size(); i++) {
-            obj = jsonArray.getJsonObject(i);
-            sha.add(obj.getString("sha"));
-        }
-        return sha;
-    }
-
-    public List<String> getArrayOfFilesFromOneCommit(JsonObject oneCommit){
-        JsonArray jsonArray = oneCommit.getJsonArray("files");
-        return jsonArray.stream()
-                .map(e->e.asJsonObject().getString("raw_url"))
-                .toList();
-    }
-
-    public String[][] getArrayOfShaOfFilesAndNumberOfChangesFromOneCommit(JsonObject OneCommit){
-        JsonArray jsonArray = OneCommit.getJsonArray("files");
-
-        String[][] filesAndChanges = new String[jsonArray.size()][2];
-        for (int i = 0; i < jsonArray.size(); i++) {
-            filesAndChanges[i][0] = jsonArray.getJsonObject(i).getString("raw_url");
-            Integer tempInt = jsonArray.getJsonObject(i).getInt("changes");
-            filesAndChanges[i][1] = Integer.toString(tempInt);
-        }
-        return filesAndChanges;
-    }
-
-    public String nameOfAuthorOfCommit(JsonObject oneCommit){
-        return oneCommit.get("commit").asJsonObject().get("author").asJsonObject().getJsonString("name").toString();
     }
 
     public int getNumberOfAllChangedLines(int idOfContributor){
